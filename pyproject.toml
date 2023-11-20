@@ -1,0 +1,42 @@
+[project]
+
+name = "whatsmapper"
+
+version = "0.0.0-rc0"
+
+# Optional.
+description = "Utility to map whatsapp chat transcripts to html"
+
+# Optional.
+readme = "README.md"
+
+# Supported python versions. Optional, but helpful.
+requires-python = ">=3.9"
+
+# Optional.
+license = {file = "LICENSE.txt"}
+
+# Optional.
+keywords = ["whatsapp", "digipres", "archiving"]
+
+# Optional.
+authors = [
+  {name = "R. Spencer", email = "all.along.the.watchtower2001+github@gmail.com" },
+]
+
+dependencies = [
+  # "package1==6.0.0",
+  # "package2==6.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/ross-spencer/whatsmapper"
+"Bug Reports" = "https://github.cm/ross-spencer/whatsmapper/issues/"
+"Source" = "https://github.com/ross-spencer/whatsmapper/sourcecode/"
+
+[project.scripts]
+whatsmap = "whatsmapper.whatsmap:main"
+
+[build-system]
+requires = ["setuptools>=67.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
