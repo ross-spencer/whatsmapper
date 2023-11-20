@@ -38,13 +38,13 @@ WhatsApp Chat - Digipres Chat/
 To convert this to html run:
 
 ```text
-whatsmap -t "/path/to/WhatsApp Chat - Digipres Chat"
+whatsmap -t "/path/to/WhatsApp Chat - Digipres Chat/_chat.txt"
 ```
 
 Or:
 
 ```text
-python3 -m whatsmap.py -t "/path/to/WhatsApp Chat - Digipres Chat"
+python3 -m whatsmap.py -t "/path/to/WhatsApp Chat - Digipres Chat/_chat.txt"
 ```
 
 ## Developer install
