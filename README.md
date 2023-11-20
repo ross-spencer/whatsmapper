@@ -47,6 +47,18 @@ Or:
 python3 -m whatsmap.py -t "/path/to/WhatsApp Chat - Digipres Chat/_chat.txt"
 ```
 
+And to output to a html file, simply add:
+
+```text
+ > whatsapp_chat.html
+```
+
+Providing a custom filename as required, e.g.
+
+```text
+whatsmap -t "/path/to/WhatsApp Chat - Digipres Chat/_chat.txt" > my_whatsapp_chat.html
+```
+
 ## Developer install
 
 ### pip
