@@ -34,14 +34,32 @@ html_header: Final[
 <html>
    <head>
       <title>Whatsmapper Demo</title>
+      <link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet">
+      <link href="https://unpkg.com/nes.css/css/nes.css" rel="stylesheet" />
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.css" rel="stylesheet" />
+      <link href="custom.css" rel="stylesheet" />
+      <style>
+        html, body, pre, code, kbd, samp {
+            font-family: "Press Start 2P";
+            background-color: #212529;
+        }
+            body { margin-top: 10rem; }
+            div.bottom-margin { margin-top: 10rem; }
+      </style>
    </head>
    <body>
-   <h1>Whatsmapper Demo</h1>
+    <div class="container">
+        <div class="nes-container is-rounded is-dark">
+         <section class="message-list">
+            <h1>Whatsmapper Demo</h1>
 """
 
 html_footer: Final[
     str
 ] = """
+            </section>
+        </div></div>
+    <div class=\"bottom-margin\"><br></div>
 </body>
 """
 
@@ -63,10 +81,23 @@ class Attachment:
         """Return a html snippet for the attachment."""
         if self.extension in ("mp4",):
             logger.info("todo: need to process video effectively")
-            return f"      <a href='{self.file_path}'><img src='{video_image}' /></a>\n"
+            return f"""
+                <video controls autoplay>
+                <source src="{self.file_path}" type="video/mp4">
+                </video>
+            """
+
         if self.extension in ("jpg", "png"):
-            return f"      <img src='{self.file_path}' />\n"
-        return f"      <a href='{self.file_path}'><img src='{file_image}' /></a>\n"
+            return f"""
+                <div class=\"nes-container is-rounded is-dark\">
+                        <img src='{self.file_path}' width=\"800px\" />\n
+                </div>
+                    """
+        return f"""
+            <div class=\"nes-container is-rounded is-dark\">
+            <a href='{self.file_path}'><img src='{file_image}' /></a>\n
+            </div>
+        """
 
 
 @dataclass
@@ -74,10 +105,27 @@ class ChatEntry:
     chat_date: str = ""
     individual: str = ""
     text: str = ""
+    primary: str = None
 
     def chat_as_html(self) -> str:
         """Return a html snippet for the entry."""
-        return f"      <div><p>{self.chat_date}: {self.individual}</p>\n<p>{self.text}</p></div>\n"
+        if self.primary == self.individual:
+            return f"""
+            <section class=\"message -right\">
+            <i class=\"nes-bcrikko\"></i>
+                    <div class=\"nes-balloon from-right is-dark\">
+                    <p>{_strip_excess_data(self.chat_date)}: {_strip_excess_data(self.individual)}</p>\n
+                    <p>{_strip_excess_data(self.text)}</p></div>\n
+            </section>
+            """
+        return f"""
+            <section class=\"message -left\">
+                <i class=\"nes-bcrikko\"></i>
+                    <div class=\"nes-balloon from-left is-dark\">
+                    <p>{_strip_excess_data(self.chat_date)}: {_strip_excess_data(self.individual)}</p>\n
+                    <p>{_strip_excess_data(self.text)}</p></div>\n
+            </section>
+        """
 
 
 @dataclass
@@ -85,6 +133,16 @@ class TranscriptData:
     individuals: list = field(default_factory=lambda: [])
     transcript: list[ChatEntry] = field(default_factory=lambda: [])
     extensions: list = field(default_factory=lambda: [])
+
+
+def _strip_excess_data(input: str):
+    """todo..."""
+    input = input.replace(":", "", 1).strip()
+    input = (
+        input.strip().replace("\u200E", "").replace("\u202A", "").replace("\u202C", "")
+    )
+    input = input.encode().replace(b"\xc2\xa0", b"\x20").replace(b"\xE2\x80\xAF", b"")
+    return input.decode()
 
 
 def data_to_html(transcript_data: TranscriptData) -> str:
@@ -120,19 +178,14 @@ def whatsapp_to_stats(transcript_data: TranscriptData) -> str:
 
 def whatsmap_to_data(transcript: pathlib.Path) -> TranscriptData:
     """Map a chat transcript to internal data structures."""
-
     transcript_data = TranscriptData()
-
     parent_folder = transcript.parents[0]
     attachment: Final[str] = "<attached:"
     http_link: Final[str] = "http"
     https_link: Final[str] = "https"
-
     individuals = []
     file_extensions = []
-
     chat = ""
-
     with transcript.open() as chat_log:
         chat = chat_log.read()
     for line in chat.splitlines():
@@ -164,17 +217,17 @@ def whatsmap_to_data(transcript: pathlib.Path) -> TranscriptData:
         try:
             chat_date = f"{line.split(']', 1)[0]}]"
             individual = line.split("]", 1)[1].split(":", 1)[0].strip()
-            chat_text = line.split(individual)[1].replace(":", "", 1).strip()
+            chat_text = _strip_excess_data("".join(line.split(individual)[1:]))
             if individual not in individuals:
                 individuals.append(individual)
         except IndexError:
             logger.debug("TODO: unable to process this line yet: %s", line)
             continue
-
         chat_entry = ChatEntry()
         chat_entry.chat_date = chat_date
         chat_entry.individual = individual
         chat_entry.text = chat_text
+        chat_entry.primary = None
         transcript_data.transcript.append(chat_entry)
 
     transcript_data.individuals = list(set(individuals))

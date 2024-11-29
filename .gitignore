@@ -136,3 +136,5 @@ dmypy.json
 # Whatsapp files
 whatsapp_chat/*
 test.html
+examples/*
+index.htm
