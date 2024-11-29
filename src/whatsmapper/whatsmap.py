@@ -1,11 +1,13 @@
 """Whatsmapper application to convert a whatsapp chat to simple HTML.
 """
 
-# pylint: disable=C0103, R0903, R0914
+# pylint: disable=C0103, R0903, R0914, W0511, R0915, R0912
 
 import argparse
+import asyncio
 import logging
 import pathlib
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -39,13 +41,20 @@ html_header: Final[
       <link href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.css" rel="stylesheet" />
       <link href="custom.css" rel="stylesheet" />
       <style>
-        html, body, pre, code, kbd, samp {
-            font-family: "Press Start 2P";
-            background-color: #212529;
-        }
+            html, body, pre, code, kbd, samp {
+                font-family: "Press Start 2P";
+                background-color: #212529;
+            }
             body { margin-top: 10rem; }
             div.bottom-margin { margin-top: 10rem; }
       </style>
+
+      <meta charset="UTF-8">
+      <meta name="description" content="Whatsmapper Whatsapp conversion by Ross Spencer (@beet_keeper)">
+      <meta name="keywords" content="Digital Preservation, HTML, Migration">
+      <meta name="author" content="Ross Spencer">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
    </head>
    <body>
     <div class="container">
@@ -100,32 +109,26 @@ class Attachment:
         """
 
 
-@dataclass
+@dataclass(slots=True)
 class ChatEntry:
     chat_date: str = ""
     individual: str = ""
     text: str = ""
-    primary: str = None
+    primary: str = ""
 
     def chat_as_html(self) -> str:
         """Return a html snippet for the entry."""
+        person = self.individual
+        date = self.chat_date
+        text = self.text
         if self.primary == self.individual:
-            return f"""
-            <section class=\"message -right\">
-            <i class=\"nes-bcrikko\"></i>
-                    <div class=\"nes-balloon from-right is-dark\">
-                    <p>{_strip_excess_data(self.chat_date)}: {_strip_excess_data(self.individual)}</p>\n
-                    <p>{_strip_excess_data(self.text)}</p></div>\n
-            </section>
-            """
-        return f"""
-            <section class=\"message -left\">
-                <i class=\"nes-bcrikko\"></i>
-                    <div class=\"nes-balloon from-left is-dark\">
-                    <p>{_strip_excess_data(self.chat_date)}: {_strip_excess_data(self.individual)}</p>\n
-                    <p>{_strip_excess_data(self.text)}</p></div>\n
-            </section>
-        """
+            return f"""<section class=\"message -right\">
+\t<div class=\"nes-balloon from-right is-dark\">\n\t\t<p>{date}: {person}</p>\n
+\t\t<p>{text}</p></div>\n\t<i class=\"nes-bcrikko\"></i>
+</section>\n"""
+        return f"""<section class=\"message -left\">
+\t<i class=\"nes-bcrikko\"></i>\n\t<div class=\"nes-balloon from-left is-dark\">
+\t\t<p>{date}: {person}</p>\n\t\t<p>{text}</p></div>\n</section>\n"""
 
 
 @dataclass
@@ -135,24 +138,31 @@ class TranscriptData:
     extensions: list = field(default_factory=lambda: [])
 
 
-def _strip_excess_data(input: str):
-    """todo..."""
-    input = input.replace(":", "", 1).strip()
-    input = (
-        input.strip().replace("\u200E", "").replace("\u202A", "").replace("\u202C", "")
+async def _strip_chars(input_: str) -> str:
+    """Replace poorly encoded characters with alternatives.
+
+    NB. be careful with early encoding here. <> for example are needed
+    for file attachments to be matched correctly.
+    """
+    input_ = input_.replace("<", "&lt;").replace(">", "&gt;")
+    input_ = input_.replace("~", "", 1)
+    input_ = (
+        input_.strip().replace("\u200E", "").replace("\u202A", "").replace("\u202C", "")
     )
-    input = input.encode().replace(b"\xc2\xa0", b"\x20").replace(b"\xE2\x80\xAF", b"")
-    return input.decode()
+    input_ = input_.encode().replace(b"\xc2\xa0", b"\x20").replace(b"\xe2\x80\xaF", b"")
+    input_ = input_.replace(b"\xE2\x80\x99", b"\x27")
+    return input_.decode()
 
 
-def data_to_html(transcript_data: TranscriptData) -> str:
+async def data_to_html(transcript_data: TranscriptData) -> str:
     """Output the chat data as HTML."""
     output = ""
     for chat in transcript_data.transcript:
-        if isinstance(chat, Attachment):
-            output = f"{output}{chat.attachment_as_href()}"
+        logger.info(chat)
+        if not isinstance(chat, Attachment):
+            output = f"{output}{chat.chat_as_html()}"
             continue
-        output = f"{output}{chat.chat_as_html()}"
+        output = f"{output}{chat.attachment_as_href()}"
     return output
 
 
@@ -176,11 +186,11 @@ def whatsapp_to_stats(transcript_data: TranscriptData) -> str:
     )
 
 
-def whatsmap_to_data(transcript: pathlib.Path) -> TranscriptData:
+async def whatsmap_to_data(transcript: pathlib.Path) -> TranscriptData:
     """Map a chat transcript to internal data structures."""
     transcript_data = TranscriptData()
     parent_folder = transcript.parents[0]
-    attachment: Final[str] = "<attached:"
+    attachment: Final[str] = "attached:"
     http_link: Final[str] = "http"
     https_link: Final[str] = "https"
     individuals = []
@@ -188,12 +198,43 @@ def whatsmap_to_data(transcript: pathlib.Path) -> TranscriptData:
     chat = ""
     with transcript.open() as chat_log:
         chat = chat_log.read()
+    chat_entry = None
     for line in chat.splitlines():
+        line = await _strip_chars(line)
+        if line == "":
+            # TODO: HTML does not have to be an output of this script,
+            # is there another way to signal a line break here?
+            chat_entry.text = f"{chat_entry.text}<br>"
+            continue
+        logger.info(line)
+        chat_date = ""
+        if not chat_entry:
+            chat_entry = ChatEntry()
+            chat_date = f"{line.split(']', 1)[0].replace(']', '')}]"
+        elif chat_entry and line.startswith("["):
+            transcript_data.transcript.append(chat_entry)
+            chat_entry = ChatEntry()
+            chat_date = ""
+            individual = ""
+            chat_text = ""
+            chat_date = f"{line.split(']', 1)[0].replace(']', '')}]"
         # Check for attachment.
         if attachment in line:
+            # Generate entry for the attachment.
+            if line.startswith("["):
+                individual = line.split("] ")[1].split(": ", 1)[0]
+                if individual not in individuals:
+                    individuals.append(individual)
+            chat_text = "".join(line.split(individual)[1:])
+            chat_entry.chat_date = chat_date.strip()
+            chat_entry.individual = individual.strip()
+            chat_entry.text = chat_text.replace(":", "", 1).strip()
+            transcript_data.transcript.append(chat_entry)
+            chat_entry = None
+            # process the attachment.
             file_attachment = Attachment()
             logger.info("handling attachment: %s", line)
-            file_name = line.split(attachment, 1)[1].strip().replace(">", "")
+            file_name = line.split(attachment, 1)[1].strip().replace("&gt;", "")
             try:
                 ext = file_name.split(".")[1]
                 file_attachment.extension = ext
@@ -209,27 +250,37 @@ def whatsmap_to_data(transcript: pathlib.Path) -> TranscriptData:
             continue
         # Otherwise process the chat entry.
         if http_link in line or https_link in line:
-            logger.info("TODO: hyperlink in line: %s", line)
-            continue
-        chat_date = ""
-        individual = ""
-        chat_text = ""
+            # TODO: regex can probably be combined into one, but this is
+            # just a quick and dirty PoC.
+            http_links = re.findall(r"(http?://\S+)", line)
+            https_links = re.findall(r"(https?://\S+)", line)
+            for http_link in http_links:
+                line = line.replace(http_link, f'<a href="{http_link}">{http_link}</a>')
+            for http_link in https_links:
+                line = line.replace(http_link, f'<a href="{http_link}">{http_link}</a>')
         try:
-            chat_date = f"{line.split(']', 1)[0]}]"
-            individual = line.split("]", 1)[1].split(":", 1)[0].strip()
-            chat_text = _strip_excess_data("".join(line.split(individual)[1:]))
-            if individual not in individuals:
-                individuals.append(individual)
+            if line.startswith("["):
+                individual = line.replace(f"{chat_date}", "").strip().split(":", 1)[0]
+                date_name = f"{chat_date}\x20{individual}:"
+                chat_text = line.replace(date_name, "").strip()
+                if individual not in individuals:
+                    individuals.append(individual)
+            else:
+                chat_text = line
         except IndexError:
-            logger.debug("TODO: unable to process this line yet: %s", line)
-            continue
-        chat_entry = ChatEntry()
-        chat_entry.chat_date = chat_date
-        chat_entry.individual = individual
-        chat_entry.text = chat_text
+            chat_text = line
+        if not chat_entry.chat_date:
+            # Not part of a multi-line entry.
+            chat_entry.chat_date = chat_date.strip()
+        chat_entry.individual = individual.strip()
+        # TODO: HTML does not have to be an output of this script,
+        # is there another way to signal a line break here?
+        chat_entry.text = f"{chat_entry.text}<br>{chat_text.strip()}".replace(
+            ":", "", 1
+        )  # Colon is still present after separating the string from the
+        # metadata. We replace it here. TODO: write test for.
         chat_entry.primary = None
-        transcript_data.transcript.append(chat_entry)
-
+    logger.info("individuals: %s", list(set(individuals)))
     transcript_data.individuals = list(set(individuals))
     transcript_data.extensions = list(set(file_extensions))
     return transcript_data
@@ -243,9 +294,8 @@ def check_path(transcript: str) -> Union[pathlib.Path, bool]:
     return path
 
 
-def main() -> None:
-    """Primary entry point for this script."""
-
+async def whatsmap() -> None:
+    """Primary runner."""
     parser = argparse.ArgumentParser(
         prog="whatsmap",
         description="utility to map a whatsmap chat transcript to HTML",
@@ -257,7 +307,6 @@ def main() -> None:
         help="location of the whatsapp transcript file",
         required=False,
     )
-
     args = parser.parse_args()
     if len(sys.argv) <= 1:
         parser.print_help(sys.stderr)
@@ -267,10 +316,16 @@ def main() -> None:
         if not transcript_path:
             logger.info("transcript path '%s' does not exist", args.transcript)
             sys.exit(1)
-        data = whatsmap_to_data(transcript_path)
+        data = await whatsmap_to_data(transcript_path)
         stats = whatsapp_to_stats(data)
-        output = f"{html_header}{stats}{data_to_html(data)}{html_footer}"
+        processed = await data_to_html(data)
+        output = f"{html_header}{stats}{processed}{html_footer}"
         print(output)
+
+
+def main():
+    """Primary entry point for this script."""
+    asyncio.run(whatsmap())
 
 
 if __name__ == "__main__":

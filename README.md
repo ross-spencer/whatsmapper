@@ -1,6 +1,43 @@
 # whatsmapper
 
-Convert Whatsapp to other file formats
+Convert Whatsapp to other file formats, starting with HTML you can style
+yourself.
+
+![whatsmapp image using NES.css](static/images/whatsmapper-nes.png)
+
+> The excellent NES CSS is available [here][nes-1].
+
+[nes-1]: https://nostalgic-css.github.io/NES.css/
+
+## Whatsapp exports
+
+This proof of concept currently only works with ~2024 exports. It can easily be
+extended with more sample data. The coding standards will improve with samples
+and usage.
+
+### 2014 and before
+
+> NB. I don't know when this format stopped being the norm for Whatsapp. My
+last exports from this era are 2014.
+
+Example message: `12/10/14, 00:59:54: NAME: MSG_DATA`
+
+* I don't know if it could consist of newlines or not.
+
+### 2024
+
+> NB. I don't know when this format started.
+
+Example message: `[9/12/24, 08:54:43] ~ NAME: MSG_DATA`
+
+* I do know this format can consist of new lines.
+* If you know the individual, the tilde is omitted.
+
+## Output formats
+
+Whatsapp data is parsed into a dataclass which currently only has a mapping to
+HTML but the data class has been written so that it can easily be extended into
+other formats if any other make sense.
 
 ## Usage
 
