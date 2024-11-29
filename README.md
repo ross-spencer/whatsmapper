@@ -2,6 +2,30 @@
 
 Convert Whatsapp to other file formats
 
+## Formats
+
+This proof of concept currently only works with ~2024 exports. It can easily be
+extended with more sample data. The coding standards will improve with samples
+and usage.
+
+### 2014 and before
+
+> NB. I don't know when this format stopped being the norm for Whatsapp. My
+last exports from this era are 2014.
+
+Example message: `12/10/14, 00:59:54: NAME: MSG_DATA`
+
+* I don't know if it could consist of newlines or not.
+
+### 2024
+
+> NB. I don't know when this format started.
+
+Example message: `[9/12/24, 08:54:43] ~ NAME: MSG_DATA`
+
+* I do know this format can consist of new lines.
+* If you know the individual, the tilde is omitted.
+
 ## Usage
 
 ```text
