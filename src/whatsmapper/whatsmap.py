@@ -160,11 +160,10 @@ async def data_to_html(transcript_data: TranscriptData) -> str:
     """Output the chat data as HTML."""
     output = ""
     for chat in transcript_data.transcript:
-        logger.info(chat)
         if not isinstance(chat, Attachment):
-            output = f"{output}{chat.chat_as_html()}"
+            output = output + chat.chat_as_html()
             continue
-        output = f"{output}{chat.attachment_as_href()}"
+        output = output + chat.attachment_as_href()
     return output
 
 
