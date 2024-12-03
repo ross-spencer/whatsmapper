@@ -29,13 +29,15 @@ logging.Formatter.converter = time.gmtime
 
 logger = logging.getLogger(__name__)
 
+TITLE_TEMPLATE = "{{ EXPORT_TITLE }}"
+
 html_header: Final[
     str
 ] = """
 <!DOCTYPE html>
 <html>
    <head>
-      <title>Whatsmapper Demo</title>
+      <title>{{ EXPORT_TITLE }}</title>
       <link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet">
       <link href="https://unpkg.com/nes.css/css/nes.css" rel="stylesheet" />
       <link href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.css" rel="stylesheet" />
@@ -50,7 +52,7 @@ html_header: Final[
       </style>
 
       <meta charset="UTF-8">
-      <meta name="description" content="Whatsmapper Whatsapp conversion by Ross Spencer (@beet_keeper)">
+      <meta name="description" content="Whatsmapper Whatsapp export formatter by Ross Spencer (@beet_keeper)">
       <meta name="keywords" content="Digital Preservation, HTML, Migration">
       <meta name="author" content="Ross Spencer">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -60,7 +62,7 @@ html_header: Final[
     <div class="container">
         <div class="nes-container is-rounded is-dark">
          <section class="message-list">
-            <h1>Whatsmapper Demo</h1>
+            <h1>{{ EXPORT_TITLE }}</h1>
 """
 
 html_footer: Final[
@@ -307,6 +309,12 @@ async def whatsmap() -> None:
         help="location of the whatsapp transcript file",
         required=False,
     )
+    parser.add_argument(
+        "-e",
+        "--export_title",
+        help="export title",
+        default="Whatsmapper Demo",
+    )
     args = parser.parse_args()
     if len(sys.argv) <= 1:
         parser.print_help(sys.stderr)
@@ -319,7 +327,7 @@ async def whatsmap() -> None:
         data = await whatsmap_to_data(transcript_path)
         stats = whatsapp_to_stats(data)
         processed = await data_to_html(data)
-        output = f"{html_header}{stats}{processed}{html_footer}"
+        output = f"{html_header.replace(TITLE_TEMPLATE, args.export_title)}{stats}{processed}{html_footer}"
         print(output)
 
 
